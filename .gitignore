@@ -1,0 +1,11 @@
+# Generated files / executables
+*.yy.c
+subd
+parse/obj
+parse/test_stack
+
+# VS Code
+.vscode/
+
+# Model files
+*.obj
