@@ -1,4 +1,5 @@
 %{
+	#include "obj.tab.h"
 	#include "strop.h"
 	#include "stack.h"
 
@@ -15,47 +16,32 @@
 %}
 
 %option noyywrap nounput noinput yylineno
-%x VERT FACE
+%x CMT NAME
 
+OP_O "o "
+OP_F "f "
+OP_VT "vt "
+OP_VN "vn "
+OP_V "v "
 FLT -?[0-9]*[.][0-9]*
 INT -?[0-9]+
+STRING [^\"<]*
 %%
 
-<INITIAL>v[ ]		{ BEGIN(VERT); row = 0; }
-<VERT>{FLT}				{
-							//if (col == 0) cnt++;
-							//printf("ln: %d, [%d|%d]: '%s'\n", yylineno, cnt, col, yytext);
-							vert.x[col] = strtof(yytext, NULL);
-							col++;	
-							if (col >= 3) {
-								col = 0;
-								cfg->v->push(cfg->v, &vert);
-								BEGIN(INITIAL);
-							}
-						}
-<VERT>\n				{
-							//col = 0; BEGIN(INITIAL);
-						}
-<INITIAL>f[ ]		{ BEGIN(FACE); col = 0; row = 0; }
-<FACE>{INT}			{
-						cnt++;
-						//printf("ln: %d, cnt: %d, [%d|%d]: '%s'\n", yylineno, cnt, row, col, yytext);
-						face.m[row][col] = atoi(yytext);						
-						row++;
-						if (row >= 3) {
-							row = 0;
-							col++;
-							if (col >= 4) {
-								col = 0;
-								//printf("pushed face\n");
-								cfg->f->push(cfg->f, &face);
-								BEGIN(INITIAL);
-							}
-						}
-					}
+<INITIAL>"#"		{ BEGIN(CMT); }
+<CMT>\n				{ BEGIN(INITIAL); }
+<INITIAL>{OP_O}		{ BEGIN(NAME); return stm_name; }
+<INITIAL>{OP_VT}	{ return stm_tc; }
+<INITIAL>{OP_VN}	{ return stm_normal; }
+<INITIAL>{OP_V}		{ return stm_vertex; }
+<INITIAL>{OP_F}		{ return stm_face; }
 
-<*>.					//ECHO;
+<INITIAL>{INT}		{ yylval.dec = atoi(yytext); return val_int; }
+<INITIAL>{FLT}		{ yylval.flt = strtof(yytext, NULL); return val_float; }
+<NAME>{STRING}		{ BEGIN(INITIAL); yylval.str = yytext; return val_string; }
+
 <*>(\ |\n|\t)			{ }
+<INITIAL>.		{ return *yytext; }
 
 %%
 

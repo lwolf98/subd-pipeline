@@ -1,5 +1,8 @@
 # Generated files / executables
 *.yy.c
+*.tab.c
+*.tab.h
+*.o
 subd
 parse/obj
 parse/test_stack
