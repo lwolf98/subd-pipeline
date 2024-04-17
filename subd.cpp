@@ -12,8 +12,8 @@ using namespace glm;
 
 int add_edge(edge_list &edges, int a, int b, int f_id, vector<vertex> &vertices);
 void update_vertex(vector<vertex> &vertices, int v_id, int f_id, int e_id);
-void subdivide(vector<vertex> &vertices, vector<vec4> &faces);
-void write_obj(const vector<vertex> &vertices, const vector<vec4> &faces);
+void subdivide(vector<vertex> &vertices, vector<vector<int>> &faces);
+void write_obj(const vector<vertex> &vertices, const vector<vector<int>> &faces);
 
 int main(int argc, char **argv) {
 	if (argc < 2 || argc > 3) {
@@ -35,22 +35,18 @@ int main(int argc, char **argv) {
 		vec3_t val = data[i];
 		printf("v %s\n", vec3_to_str(val));
 		vertices.push_back(vertex(val));
-		//vertices[vertices.size()-1]
 	}
 	printf("\n");
 
-	vector<vec4> faces;
+	vector<vector<int>> faces;
 	stack_t *data_f = (stack_t *)cfg->f->storage;
 	for (int i = 0; i <= cfg->f->index; i++) {
 		stack_t *v_list = data_f + i;
 		printf("f ");
-		vec4 verts;
-		verts.x = ((int **)v_list->storage)[0][0] - 1;
-		verts.y = ((int **)v_list->storage)[1][0] - 1;
-		verts.z = ((int **)v_list->storage)[2][0] - 1;
-		verts.w = ((int **)v_list->storage)[3][0] - 1;
+		vector<int> verts;
 		for (int j = 0; j <= v_list->index; j++) {
 			int *v_cfg = ((int **)v_list->storage)[j];
+			verts.push_back(v_cfg[0]-1);
 			printf("%s ", v_cfg_to_str(v_cfg));
 		}
 		printf("\n");
@@ -67,25 +63,22 @@ int main(int argc, char **argv) {
 	return 0;
 }
 
-void subdivide(vector<vertex> &vertices, vector<vec4> &faces) {
+void subdivide(vector<vertex> &vertices, vector<vector<int>> &faces) {
 	// Gather face vertices and edges and update vertex information
 	edge_list edges;
 	vector<vec3> face_vertices;
 	for (uint i = 0; i < faces.size(); i++) {
-		vec4& f = faces[i];
-		face_vertices.push_back(1.f/4 * (vertices[f.x].v+vertices[f.y].v+vertices[f.z].v+vertices[f.w].v));
-		vec3 &f_new = face_vertices[face_vertices.size()-1];
+		vector<int>& f = faces[i];
+		vec3 f_new(0);
+		for (uint j = 0; j < f.size(); j++)
+			f_new += vertices[f[j]].v;
+
+		f_new = 1.f/f.size() * f_new;
+		face_vertices.push_back(f_new);
 		cout << "f_new: (" << f_new.x << ", " << f_new.y << ", " << f_new.z << ")" << endl;
 
-		int e_id;
-		e_id = add_edge(edges, f.x, f.y, i, vertices);
-		//update_vertex(vertices, f.x, i, e_id);
-		e_id = add_edge(edges, f.y, f.z, i, vertices);
-		//update_vertex(vertices, f.y, i, e_id);
-		e_id = add_edge(edges, f.z, f.w, i, vertices);
-		//update_vertex(vertices, f.z, i, e_id);
-		e_id = add_edge(edges, f.w, f.x, i, vertices);
-		//update_vertex(vertices, f.w, i, e_id);
+		for (uint j = 0; j < f.size(); j++)
+			add_edge(edges, f[j], f[(j+1)%f.size()], i, vertices);
 
 	}
 
@@ -163,9 +156,8 @@ void subdivide(vector<vertex> &vertices, vector<vec4> &faces) {
 	int off_edge = off_vert + vertices.size();
 	int off_face = off_edge + edges.size();
 
-	vector<vec4> new_faces;
+	vector<vector<int>> new_faces;
 	vertices.clear();
-	//faces.clear();
 
 	// Assign vertices
 	for (uint i = 0; i < old_vertices; i++) {
@@ -180,39 +172,21 @@ void subdivide(vector<vertex> &vertices, vector<vec4> &faces) {
 
 	// Assign faces
 	for (uint i = 0; i < faces.size(); i++) {
-		vec4 &f = faces[i];
+		vector<int> &f = faces[i];
 		
-		new_faces.push_back(vec4(
-			off_vert+f.x,
-			off_edge+edges.get_id(f.x, f.y),
-			off_face+i,
-			off_edge+edges.get_id(f.x, f.w)
-		));
-
-		new_faces.push_back(vec4(
-			off_edge+edges.get_id(f.y, f.x),
-			off_vert+f.y,
-			off_edge+edges.get_id(f.y, f.z),
-			off_face+i
-		));
-		
-		new_faces.push_back(vec4(
-			off_face+i,
-			off_edge+edges.get_id(f.z, f.y),
-			off_vert+f.z,
-			off_edge+edges.get_id(f.z, f.w)
-		));
-		
-		new_faces.push_back(vec4(
-			off_edge+edges.get_id(f.w, f.x),
-			off_face+i,
-			off_edge+edges.get_id(f.w, f.z),
-			off_vert+f.w
-		));
+		int n = f.size();
+		for (int j = 0; j < n; j++) {
+			vector<int> new_f;
+			new_f.push_back(off_vert+f[j]);
+			new_f.push_back(off_edge+edges.get_id(f[j], f[(j+1)%n]));
+			new_f.push_back(off_face+i);
+			new_f.push_back(off_edge+edges.get_id(f[j], f[((j-1)%n+n)%n]));
+			new_faces.push_back(new_f);
+		}
 	}
 
 	faces.clear();
-	for (vec4 &f : new_faces) {
+	for (vector<int> &f : new_faces) {
 		faces.push_back(f);
 	}
 }
@@ -245,7 +219,7 @@ void update_vertex(vector<vertex> &vertices, int v_id, int f_id, int e_id) {
 		v.face_ids.push_back(f_id);
 }
 
-void write_obj(const vector<vertex> &vertices, const vector<vec4> &faces) {
+void write_obj(const vector<vertex> &vertices, const vector<vector<int>> &faces) {
 	// Construct obj format
 
 	// Write vertices
@@ -261,8 +235,12 @@ void write_obj(const vector<vertex> &vertices, const vector<vec4> &faces) {
 	// Write faces
 	outfile << endl;
 	for (uint i = 0; i < faces.size(); i++) {
-		const vec4 &f = faces[i];
-		outfile << "f " << f.x+1 << "/0/0 " << f.y+1 << "/0/0 " << f.z+1 << "/0/0 " << f.w+1 << "/0/0" << endl;
+		const vector<int> &f = faces[i];
+		outfile << "f";
+		for (uint j = 0; j < f.size(); j++)
+			outfile << " " << f[j]+1  << "/0/0";
+
+		outfile << endl;
 	}
 
 	outfile.close();
