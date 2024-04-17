@@ -12,3 +12,4 @@ parse/test_stack
 
 # Model files
 *.obj
+*.mtl

@@ -49,6 +49,7 @@ char *face_to_str(const face_t *f);
 char *face_v_to_str(const face_t *f);
 char *face_vt_to_str(const face_t *f);
 char *face_vn_to_str(const face_t *f);
+char *v_cfg_to_str(const int *v_cfg);
 
 typedef struct stack_t {
 	void *storage;

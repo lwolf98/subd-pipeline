@@ -4,19 +4,22 @@
 	#include "stack.h"
 
 	//stack_t *obj;
-	cfg_t *cfg;
+	//cfg_t *cfg;
 	string buf;
 
 	int cnt = 0;
 	int row = 0;
 	int col = 0;
 
-	vec3_t vert;
-	face_t face;
+	//vec3_t vert;
+	//face_t face;
+
+	int show_dbgl = 0;
+	void dbgl(char *msg);
 %}
 
 %option noyywrap nounput noinput yylineno
-%x CMT NAME
+%x NAME
 
 OP_O "o "
 OP_F "f "
@@ -25,36 +28,35 @@ OP_VN "vn "
 OP_V "v "
 FLT -?[0-9]*[.][0-9]*
 INT -?[0-9]+
-STRING [^\"<]*
+STRING [^\"<\n]*
 %%
 
-<INITIAL>"#"		{ BEGIN(CMT); }
-<CMT>\n				{ BEGIN(INITIAL); }
-<INITIAL>{OP_O}		{ BEGIN(NAME); return stm_name; }
-<INITIAL>{OP_VT}	{ return stm_tc; }
-<INITIAL>{OP_VN}	{ return stm_normal; }
-<INITIAL>{OP_V}		{ return stm_vertex; }
-<INITIAL>{OP_F}		{ return stm_face; }
+<INITIAL>#.*\n		{ printf("comment detected\n"); }
+<INITIAL>{OP_O}		{ BEGIN(NAME); printf("stm_name\n"); return stm_name; }
+<INITIAL>{OP_VT}	{ printf("stm_tc\n"); return stm_tc; }
+<INITIAL>{OP_VN}	{ printf("stm_normal\n"); return stm_normal; }
+<INITIAL>{OP_V}		{ printf("stm_vertex\n"); return stm_vertex; }
+<INITIAL>{OP_F}		{ printf("stm_face\n"); return stm_face; }
 
-<INITIAL>{INT}		{ yylval.dec = atoi(yytext); return val_int; }
-<INITIAL>{FLT}		{ yylval.flt = strtof(yytext, NULL); return val_float; }
-<NAME>{STRING}		{ BEGIN(INITIAL); yylval.str = yytext; return val_string; }
+<INITIAL>"mtllib ".*\n	{ /* ignore for now */ printf("ignore mtllib\n"); }
+<INITIAL>"usemtl ".*\n	{ /* ignore for now */ printf("ignore usemtl\n"); }
+<INITIAL>"s ".*\n	{ /* ignore for now */ printf("ignore smoothing\n"); }
 
-<*>(\ |\n|\t)			{ }
-<INITIAL>.		{ return *yytext; }
+<INITIAL>{INT}		{ yylval.dec = atoi(yytext); printf("val_int\n"); return val_int; }
+<INITIAL>{FLT}		{ yylval.flt = strtof(yytext, NULL); printf("val_float\n"); return val_float; }
+<NAME>{STRING}		{
+						BEGIN(INITIAL);
+						yylval.str = yytext;
+						printf("val_string "); printf("%s", yytext); printf("\n");
+						return val_string;
+					}
+
+<INITIAL>(\ |\n|\t)		{ printf("blank\n"); }
+<INITIAL>.				{ printf("ANY\n"); return *yytext; }
 
 %%
 
-cfg_t *parse_obj(char *file_in) {
-	cfg = new_cfg();
-	init_string(&buf);
-
-	yyin = fopen(file_in, "r");
-	if (yyin == NULL) {
-		printf("Could not open file: %s\n", file_in);
-		return NULL;
-	}
-	yylex();
-
-	return cfg;
+void dbgl(char *msg) {
+	if (show_dbgl)
+		printf("[%d L] %s", yylineno, msg);
 }

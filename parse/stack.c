@@ -17,7 +17,7 @@ cfg_t *new_cfg() {
 	cfg->v = new_stack(sizeof(vec3_t));
 	cfg->vt = new_stack(sizeof(vec2_t));
 	cfg->vn = new_stack(sizeof(vec3_t));
-	cfg->f = new_stack(sizeof(face_t));
+	cfg->f = new_stack(sizeof(stack_t));
 
 	return cfg;
 }
@@ -173,5 +173,16 @@ char *face_vn_to_str(const face_t *f) {
 				f->m[0][1], f->m[2][1],
 				f->m[0][2], f->m[2][2],
 				f->m[0][3], f->m[2][3]);
+	return result;
+}
+
+char *v_cfg_to_str(const int *v_cfg) {
+	int len = snprintf(NULL, 0,
+				"%d/%d/%d",
+				v_cfg[0], v_cfg[1], v_cfg[2]);
+	char *result = (char *)malloc(len + 1);
+	snprintf(result, len+1,
+				"%d/%d/%d",
+				v_cfg[0], v_cfg[1], v_cfg[2]);
 	return result;
 }

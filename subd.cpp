@@ -40,11 +40,20 @@ int main(int argc, char **argv) {
 	printf("\n");
 
 	vector<vec4> faces;
-	face_t *data_f = (face_t *)cfg->f->storage;
+	stack_t *data_f = (stack_t *)cfg->f->storage;
 	for (int i = 0; i <= cfg->f->index; i++) {
-		face_t val = data_f[i];
-		printf("%s\n", face_to_str(&val));
-		vec4 verts(val.m[0][0]-1, val.m[0][1]-1, val.m[0][2]-1, val.m[0][3]-1);
+		stack_t *v_list = data_f + i;
+		printf("f ");
+		vec4 verts;
+		verts.x = ((int **)v_list->storage)[0][0] - 1;
+		verts.y = ((int **)v_list->storage)[1][0] - 1;
+		verts.z = ((int **)v_list->storage)[2][0] - 1;
+		verts.w = ((int **)v_list->storage)[3][0] - 1;
+		for (int j = 0; j <= v_list->index; j++) {
+			int *v_cfg = ((int **)v_list->storage)[j];
+			printf("%s ", v_cfg_to_str(v_cfg));
+		}
+		printf("\n");
 		faces.push_back(verts);
 	}
 	printf("\n");
