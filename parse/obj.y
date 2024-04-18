@@ -42,6 +42,8 @@
 <dec> val_int
 <flt> val_float
 
+%type	<flt>	NUMBER
+
 %%
 
 START:				STATEMENT_LIST				{ /*dbgy("start detected\n");*/ }
@@ -69,14 +71,14 @@ STATEMENT:			stm_name val_string		{ /*printf("name detected: "); printf("%s\n", 
 												v_buffer = new_stack(sizeof(int *));
 											}
 
-VT_ARGS:			val_float val_float				{
+VT_ARGS:			NUMBER NUMBER				{
 														printf("%f %f", $1, $2);
 														vec2_t tc;
 														tc.x[0] = $1;
 														tc.x[1] = $2;
 														cfg->vt->push(cfg->vt, &tc);
 													}
-VN_ARGS:			val_float val_float val_float	{
+VN_ARGS:			NUMBER NUMBER NUMBER	{
 														printf("%f %f %f", $1, $2, $3);
 														vec3_t normal;
 														normal.x[0] = $1;
@@ -84,7 +86,7 @@ VN_ARGS:			val_float val_float val_float	{
 														normal.x[2] = $3;
 														cfg->vn->push(cfg->vn, &normal);
 													}
-V_ARGS:				val_float val_float val_float	{
+V_ARGS:				NUMBER NUMBER NUMBER	{
 														printf("%f %f %f", $1, $2, $3);
 														vec3_t vert;
 														vert.x[0] = $1;
@@ -92,6 +94,8 @@ V_ARGS:				val_float val_float val_float	{
 														vert.x[2] = $3;
 														cfg->v->push(cfg->v, &vert);
 													}
+NUMBER:				val_float
+				|	val_int							{ $$ = val_int; }
 F_ARGS:				F_ARGS_1
 				|	F_ARGS_2
 				|	F_ARGS_3

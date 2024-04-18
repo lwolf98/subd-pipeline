@@ -6,6 +6,8 @@
 subd
 parse/obj
 parse/test_stack
+dbg.*
+dbg_*
 
 # VS Code
 .vscode/
