@@ -5,12 +5,10 @@
 	#include "strop.h"
 
 	cfg_t *cfg;
-	//string buf;
 	face_t face;
 	stack_t *v_buffer;
 
 	int yylex(void);
-	//extern string buffer;
 	extern int yylineno;
 	extern FILE *yyin;
 
@@ -51,7 +49,13 @@ START:				STATEMENT_LIST				{ /*dbgy("start detected\n");*/ }
 STATEMENT_LIST:		STATEMENT_LIST STATEMENT	{ /*dbgy("statement list detected\n");*/ }
 				|	/* epsilon */
 
-STATEMENT:			stm_name val_string		{ /*printf("name detected: "); printf("%s\n", $2);*/ }
+STATEMENT:			stm_name val_string		{
+												string buf;
+												init_string(&buf);
+												buf.append(&buf, $2);
+												cfg->name = buf.get(&buf);
+												/*printf("name detected: "); printf("%s\n", $2);*/
+											}
 				|	stm_tc VT_ARGS			{ printf(" <- tc detected\n"); }
 				|	stm_normal VN_ARGS		{ printf(" <- normal detected\n"); }
 				|	stm_vertex V_ARGS		{ printf(" <- vertex detected\n"); }

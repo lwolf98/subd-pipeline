@@ -67,6 +67,7 @@ typedef struct stack_t {
 stack_t *new_stack(int member_size);
 
 typedef struct {
+	char *name;
 	stack_t *v;
 	stack_t *vt;
 	stack_t *vn;

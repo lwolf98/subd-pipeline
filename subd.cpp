@@ -13,7 +13,7 @@ using namespace glm;
 int add_edge(edge_list &edges, int a, int b, int f_id, vector<vertex> &vertices);
 void update_vertex(vector<vertex> &vertices, int v_id, int f_id, int e_id);
 void subdivide(vector<vertex> &vertices, vector<vector<int>> &faces);
-void write_obj(const vector<vertex> &vertices, const vector<vector<int>> &faces);
+void write_obj(const vector<vertex> &vertices, const vector<vector<int>> &faces, const std::string name);
 
 int main(int argc, char **argv) {
 	if (argc < 2 || argc > 3) {
@@ -58,7 +58,10 @@ int main(int argc, char **argv) {
 	for (int i = 0; i < subd_level; i++)
 		subdivide(vertices, faces);
 
-	write_obj(vertices, faces);
+	std::string name = "out_" + std::string(cfg->name) + "_" + std::to_string(subd_level) + ".obj";
+	write_obj(vertices, faces, name);
+
+	cout << "Name: " << name << endl;
 
 	return 0;
 }
@@ -100,12 +103,22 @@ void subdivide(vector<vertex> &vertices, vector<vector<int>> &faces) {
 	for (int i = 0; i < edges.size(); i++) {
 		edge &e = edges.get(i);
 		vec3 e_new;
-		if (e.face_ids.size() == 2)
+		int n_faces = e.face_ids.size();
+		if (n_faces == 2)
 			e_new = 1.f/4 * (vertices[e.v1].v + vertices[e.v2].v + face_vertices[e.face_ids[0]] + face_vertices[e.face_ids[1]]);
-		else if (e.face_ids.size() == 1)
+		else if (n_faces == 1)
 			e_new = edge_vertices[i];
+		else if (n_faces > 2) {
+			// TODO: verify if this case is equivalent to literature!
+			// Mine: implicit handling of an edge with n_faces > 2
+			e_new = vertices[e.v1].v + vertices[e.v2].v;
+			for (int j = 0; j < n_faces; j++)
+				e_new += face_vertices[e.face_ids[j]];
+
+			e_new *= 1.f/(2+n_faces);
+		}
 		else
-			cout << "Error: unhandles face number for edge!!!" << endl;
+			cout << "Error: unhandled face number for edge!!!" << endl;
 
 		e_news.push_back(e_new);
 		cout << "e_new: (" << e_new.x << ", " << e_new.y << ", " << e_new.z << ")" << endl;
@@ -145,6 +158,8 @@ void subdivide(vector<vertex> &vertices, vector<vector<int>> &faces) {
 				R += edge_vertices[v.edge_ids[j]];
 			}
 
+			// TODO: verify if this case is equivalent to literature!
+			// Mine: double weight the vertex position here
 			v_new = 1.f/(relevant_edges+2) * (R + v.v+v.v);
 		}
 		v_news.push_back(v_new);
@@ -219,12 +234,13 @@ void update_vertex(vector<vertex> &vertices, int v_id, int f_id, int e_id) {
 		v.face_ids.push_back(f_id);
 }
 
-void write_obj(const vector<vertex> &vertices, const vector<vector<int>> &faces) {
+void write_obj(const vector<vertex> &vertices, const vector<vector<int>> &faces, const std::string name) {
 	// Construct obj format
 
 	// Write vertices
 	ofstream outfile;
-	outfile.open("out.obj");
+	//outfile.open("out.obj");
+	outfile.open("out/" + name);
 
 	outfile << "o MyCube" << endl;
 	for (uint i = 0; i < vertices.size(); i++) {

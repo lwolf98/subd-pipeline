@@ -1,18 +1,6 @@
 %{
 	#include "obj.tab.h"
-	#include "strop.h"
 	#include "stack.h"
-
-	//stack_t *obj;
-	//cfg_t *cfg;
-	string buf;
-
-	int cnt = 0;
-	int row = 0;
-	int col = 0;
-
-	//vec3_t vert;
-	//face_t face;
 
 	int show_dbgl = 0;
 	void dbgl(char *msg);
