@@ -58,7 +58,7 @@ int main(int argc, char **argv) {
 	for (int i = 0; i < subd_level; i++)
 		subdivide(vertices, faces);
 
-	std::string name = "out_" + std::string(cfg->name) + "_" + std::to_string(subd_level) + ".obj";
+	std::string name = std::string(cfg->name) + "_" + std::to_string(subd_level);
 	write_obj(vertices, faces, name);
 
 	cout << "Name: " << name << endl;
@@ -239,10 +239,9 @@ void write_obj(const vector<vertex> &vertices, const vector<vector<int>> &faces,
 
 	// Write vertices
 	ofstream outfile;
-	//outfile.open("out.obj");
-	outfile.open("out/" + name);
+	outfile.open("out/out_" + name + ".obj");
 
-	outfile << "o MyCube" << endl;
+	outfile << "o " << name << endl;
 	for (uint i = 0; i < vertices.size(); i++) {
 		const vec3 &v = vertices[i].v;
 		outfile << "v " << v.x << " " << v.y << " " << v.z << endl;
