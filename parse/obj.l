@@ -26,6 +26,7 @@ STRING [^\"<\n]*
 <INITIAL>"mtllib ".*\n	{ /* ignore for now */ }
 <INITIAL>"usemtl ".*\n	{ /* ignore for now */ }
 <INITIAL>"s ".*\n	{ /* ignore for now */ }
+<INITIAL>"g ".*\n	{ /* ignore for now */ }
 
 <INITIAL>{INT}		{ yylval.dec = atoi(yytext); return val_int; }
 <INITIAL>{FLT}		{ yylval.flt = strtof(yytext, NULL); return val_float; }
