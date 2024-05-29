@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-O2 -ggdb3 -Wall
+CFLAGS=-O0 -ggdb3 -Wall
 OBJ=main.o stack.o strop.o obj.tab.o lex.yy.o
 
 obj: $(OBJ)

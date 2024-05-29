@@ -12,8 +12,12 @@ using namespace glm;
 
 int add_edge(edge_list &edges, int a, int b, int f_id, vector<vertex> &vertices);
 void update_vertex(vector<vertex> &vertices, int v_id, int f_id, int e_id);
-void subdivide(vector<vertex> &vertices, vector<vector<int>> &faces);
-void write_obj(const vector<vertex> &vertices, const vector<vector<int>> &faces, const std::string name);
+void subdivide(vector<vertex> &vertices, vector<vector<int>> &faces, vector<vec3> &normals);
+void triangulate(const vector<vertex> &vertices, vector<vector<int>> &faces, vector<vec3> &normals);
+void write_obj(const vector<vertex> &vertices, const vector<vector<int>> &faces, const vector<vec3> &normals, const std::string name);
+
+bool has_normals;
+bool has_tc;
 
 int main(int argc, char **argv) {
 	if (argc < 2 || argc > 3) {
@@ -38,6 +42,22 @@ int main(int argc, char **argv) {
 	}
 	printf("\n");
 
+	vector<vec3> normals;
+	vec3_t *data_normals = (vec3_t *)cfg->vn->storage;
+	for (int i = 0; i <= cfg->vn->index; i++) {
+		vec3_t normal = data_normals[i];
+		printf("vn %s\n", vec3_to_str(normal));
+		normals.push_back(glm::vec3(normal.x[0], normal.x[1], normal.x[2]));
+	}
+
+	vec2_t *data_texcoords = (vec2_t *)cfg->vt->storage;
+	for (int i = 0; i <= cfg->vt->index; i++) {
+		vec2_t tc = data_texcoords[i];
+		printf("vt %s\n", vec2_to_str(tc));
+		//...
+		//vertices[i].tc = glm::vec2(tc.x[0], tc.x[1]);
+	}
+
 	vector<vector<int>> faces;
 	stack_t *data_f = (stack_t *)cfg->f->storage;
 	for (int i = 0; i <= cfg->f->index; i++) {
@@ -52,21 +72,27 @@ int main(int argc, char **argv) {
 		printf("\n");
 		faces.push_back(verts);
 	}
+
+	has_normals = cfg->vn->index != -1;
+	has_tc = cfg->vt->index != -1;
+
 	printf("\n");
 	printf("PARSING DONE\n");
 
 	for (int i = 0; i < subd_level; i++)
-		subdivide(vertices, faces);
+		subdivide(vertices, faces, normals);
+
+	triangulate(vertices, faces, normals);
 
 	std::string name = std::string(cfg->name) + "_" + std::to_string(subd_level);
-	write_obj(vertices, faces, name);
+	write_obj(vertices, faces, normals, name);
 
 	cout << "Name: " << name << endl;
 
 	return 0;
 }
 
-void subdivide(vector<vertex> &vertices, vector<vector<int>> &faces) {
+void subdivide(vector<vertex> &vertices, vector<vector<int>> &faces, vector<vec3> &normals) {
 	// Gather face vertices and edges and update vertex information
 	edge_list edges;
 	vector<vec3> face_vertices;
@@ -171,7 +197,6 @@ void subdivide(vector<vertex> &vertices, vector<vector<int>> &faces) {
 	int off_edge = off_vert + vertices.size();
 	int off_face = off_edge + edges.size();
 
-	vector<vector<int>> new_faces;
 	vertices.clear();
 
 	// Assign vertices
@@ -186,6 +211,8 @@ void subdivide(vector<vertex> &vertices, vector<vector<int>> &faces) {
 	}
 
 	// Assign faces
+	vector<vector<int>> new_faces;
+	normals.clear();
 	for (uint i = 0; i < faces.size(); i++) {
 		vector<int> &f = faces[i];
 		
@@ -197,6 +224,11 @@ void subdivide(vector<vertex> &vertices, vector<vector<int>> &faces) {
 			new_f.push_back(off_face+i);
 			new_f.push_back(off_edge+edges.get_id(f[j], f[((j-1)%n+n)%n]));
 			new_faces.push_back(new_f);
+
+			glm::vec3 u = vertices[new_f[0]].v - vertices[new_f[1]].v;
+			glm::vec3 v = vertices[new_f[2]].v - vertices[new_f[1]].v;
+			glm::vec3 normal = glm::normalize(glm::cross(v, u));
+			normals.push_back(normal);
 		}
 	}
 
@@ -234,26 +266,89 @@ void update_vertex(vector<vertex> &vertices, int v_id, int f_id, int e_id) {
 		v.face_ids.push_back(f_id);
 }
 
-void write_obj(const vector<vertex> &vertices, const vector<vector<int>> &faces, const std::string name) {
+void triangulate(const vector<vertex> &vertices, vector<vector<int>> &faces, vector<vec3> &normals) {
+	vector<vector<int>> new_faces;
+	vector<vec3> new_normals;
+
+	for (uint i = 0; i < faces.size(); i++) {
+		vector<int> &f = faces[i];
+		int n = f.size();
+		int j = 0;
+		while (f.size() > 3) {
+			j++;
+			int i_x = j%n;
+			int i_a = ((j-1) % n + n) % n;
+			int i_b = (j+1) % n;
+			vec3 x = vertices[f[i_x]].v;
+			vec3 a = vertices[f[i_a]].v;
+			vec3 b = vertices[f[i_b]].v;
+			vec3 to_a = a - x;
+			vec3 to_b = b - x;
+			float d = glm::determinant(glm::mat3x3(to_b, to_a, normals[i]));
+			if (d <= 0)
+				continue;
+
+			vector<int> new_f;
+			new_f.push_back(f[i_x]);
+			new_f.push_back(f[i_b]);
+			new_f.push_back(f[i_a]);
+			new_faces.push_back(new_f);
+
+			// works only for planar polygons:
+			new_normals.push_back(normals[i]);
+
+			f.erase(f.begin() + i_x);
+		}
+		new_faces.push_back(f);
+		new_normals.push_back(normals[i]);
+	}
+
+	normals.clear();
+	faces.clear();
+	for (uint i = 0; i < new_faces.size(); i++) {
+		faces.push_back(new_faces[i]);
+		normals.push_back(new_normals[i]);
+	}
+}
+
+void write_obj(const vector<vertex> &vertices, const vector<vector<int>> &faces, const vector<vec3> &normals, const std::string name) {
 	// Construct obj format
 
-	// Write vertices
 	ofstream outfile;
 	outfile.open("out/out_" + name + ".obj");
-
 	outfile << "o " << name << endl;
+
+	// Write vertices
 	for (uint i = 0; i < vertices.size(); i++) {
 		const vec3 &v = vertices[i].v;
 		outfile << "v " << v.x << " " << v.y << " " << v.z << endl;
 	}
+
+	// Write normals
+	outfile << endl;
+	for (uint i = 0; i < normals.size(); i++) {
+		const vec3 &n = normals[i];
+		outfile << "vn " << n.x << " " << n.y << " " << n.z << endl;
+	}
+
+	// Write texture coordinates
+	// ...
 
 	// Write faces
 	outfile << endl;
 	for (uint i = 0; i < faces.size(); i++) {
 		const vector<int> &f = faces[i];
 		outfile << "f";
-		for (uint j = 0; j < f.size(); j++)
-			outfile << " " << f[j]+1  << "/0/0";
+		for (uint j = 0; j < f.size(); j++) {
+			//if (has_normals && has_tc)
+			//	outfile << " " << f[j]+1  << "/0/0";
+			if (has_normals)
+				outfile << " " << f[j]+1  << "//" << i+1;
+			//else if (has_tc)
+			//	outfile << " " << f[j]+1  << "/0/0";
+			else
+				outfile << " " << f[j]+1;
+		}
 
 		outfile << endl;
 	}

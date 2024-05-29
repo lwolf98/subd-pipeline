@@ -16,6 +16,8 @@ struct edge {
 
 struct vertex {
 	glm::vec3 v;
+	//glm::vec3 n;
+	//glm::vec2 tc;
 	std::vector<int> edge_ids;
 	std::vector<int> face_ids;
 
