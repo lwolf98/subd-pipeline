@@ -18,6 +18,7 @@ void write_obj(const vector<vertex> &vertices, const vector<vector<int>> &faces,
 
 bool has_normals;
 bool has_tc;
+bool triagnulation = true;
 
 int main(int argc, char **argv) {
 	if (argc < 2 || argc > 3) {
@@ -82,7 +83,8 @@ int main(int argc, char **argv) {
 	for (int i = 0; i < subd_level; i++)
 		subdivide(vertices, faces, normals);
 
-	triangulate(vertices, faces, normals);
+	if (triagnulation)
+		triangulate(vertices, faces, normals);
 
 	std::string name = std::string(cfg->name) + "_" + std::to_string(subd_level);
 	write_obj(vertices, faces, normals, name);
@@ -266,6 +268,7 @@ void update_vertex(vector<vertex> &vertices, int v_id, int f_id, int e_id) {
 		v.face_ids.push_back(f_id);
 }
 
+// ear cutting triangulation
 void triangulate(const vector<vertex> &vertices, vector<vector<int>> &faces, vector<vec3> &normals) {
 	vector<vector<int>> new_faces;
 	vector<vec3> new_normals;
@@ -273,8 +276,8 @@ void triangulate(const vector<vertex> &vertices, vector<vector<int>> &faces, vec
 	for (uint i = 0; i < faces.size(); i++) {
 		vector<int> &f = faces[i];
 		int n = f.size();
-		int j = 0;
-		while (f.size() > 3) {
+ 		int j = -1;
+		while (n > 3) {
 			j++;
 			int i_x = j%n;
 			int i_a = ((j-1) % n + n) % n;
@@ -284,8 +287,33 @@ void triangulate(const vector<vertex> &vertices, vector<vector<int>> &faces, vec
 			vec3 b = vertices[f[i_b]].v;
 			vec3 to_a = a - x;
 			vec3 to_b = b - x;
+
+			// test if angle at x is convex inside the polygon, otherwise continue
 			float d = glm::determinant(glm::mat3x3(to_b, to_a, normals[i]));
 			if (d <= 0)
+				continue;
+
+			// test if the triangle x-a-b is an ear (all other points of the polygon are outside this triangle),
+			// otherwise continue
+			// 1. calc normal (cross(to_a, to_b))
+			// 2. calc "normal of normal and to_a" (cross(normal, to_a))
+			// 3. test for each other point if its left or right of to_a
+			vec3 normal = cross(to_b, to_a);
+			vec3 b_to_a = a - b;
+			vec3 v = cross(normal, b_to_a);
+
+			int i_k = (i_b+1)%n;
+			bool skip_x = false;
+			while (i_k != i_a) {
+				vec3 b_to_k = vertices[f[i_k]].v - b;
+				if (dot(v, b_to_k) >= 0) {
+					skip_x = true;
+					break;
+				}
+				i_k = (i_k+1)%n;
+				cout << "i_k: " << i_k << ", i_a: " << i_a << endl;
+			}
+			if (skip_x)
 				continue;
 
 			vector<int> new_f;
@@ -298,6 +326,7 @@ void triangulate(const vector<vertex> &vertices, vector<vector<int>> &faces, vec
 			new_normals.push_back(normals[i]);
 
 			f.erase(f.begin() + i_x);
+			n = f.size();
 		}
 		new_faces.push_back(f);
 		new_normals.push_back(normals[i]);
