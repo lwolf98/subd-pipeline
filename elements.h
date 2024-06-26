@@ -7,11 +7,14 @@
 
 struct edge {
 	int v1, v2;
+	float sharpness;
 	std::vector<int> face_ids;
 
-	edge(int v1, int v2) : v1(v1), v2(v2) {}
+	edge(int v1, int v2) : v1(v1), v2(v2), sharpness(0.f) {}
 
 	bool face_exists(int id) const;
+	glm::vec3 smooth_edge_vertex();
+	glm::vec3 sharp_edge_vertex();
 };
 
 struct vertex {

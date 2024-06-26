@@ -16,9 +16,15 @@ void subdivide(vector<vertex> &vertices, vector<vector<int>> &faces, vector<vec3
 void triangulate(const vector<vertex> &vertices, vector<vector<int>> &faces, vector<vec3> &normals);
 void write_obj(const vector<vertex> &vertices, const vector<vector<int>> &faces, const vector<vec3> &normals, const std::string name);
 
+vec3 calc_smooth_edge_vertex(const edge &e, const vector<vertex> &vertices, const vector<vec3> &face_vertices);
+vec3 calc_sharp_edge_vertex(const edge &e, const vector<vertex> &vertices);
+vec3 calc_vertex_vertex(const vertex &v, edge_list &edges, const vector<vec3> &edge_vertices, const vector<vec3> &face_vertices);
+
 bool has_normals;
 bool has_tc;
 bool triagnulation = true;
+
+edge_list creases;
 
 int main(int argc, char **argv) {
 	if (argc < 2 || argc > 3) {
@@ -31,6 +37,13 @@ int main(int argc, char **argv) {
 	}
 	cout << "SUBDIVISION LEVEL: " << subd_level << endl;
 
+	// Crease configuration
+	int c_id = creases.add(0, 4);
+	creases.get(c_id).sharpness = 1.f;
+	c_id = creases.add(4, 6);
+	creases.get(c_id).sharpness = 1.f;
+
+	// Parse obj file
 	cfg_t *cfg = parse_obj(argv[1]);
 	cout << "cfg address: " << cfg << endl;
 
@@ -113,6 +126,13 @@ void subdivide(vector<vertex> &vertices, vector<vector<int>> &faces, vector<vec3
 
 	}
 
+	// Assign edge crease sharpness
+	for (int i = 0; i < creases.size(); i++) {
+		edge &c = creases.get(i);
+		edge &e = edges.get(edges.get_id(c.v1, c.v2));
+		e.sharpness = c.sharpness;
+	}
+
 	// Calculate current edge vertices
 	vector<vec3> edge_vertices;
 	for (int i = 0; i < edges.size(); i++) {
@@ -131,22 +151,22 @@ void subdivide(vector<vertex> &vertices, vector<vector<int>> &faces, vector<vec3
 	for (int i = 0; i < edges.size(); i++) {
 		edge &e = edges.get(i);
 		vec3 e_new;
-		int n_faces = e.face_ids.size();
-		if (n_faces == 2)
-			e_new = 1.f/4 * (vertices[e.v1].v + vertices[e.v2].v + face_vertices[e.face_ids[0]] + face_vertices[e.face_ids[1]]);
-		else if (n_faces == 1)
-			e_new = edge_vertices[i];
-		else if (n_faces > 2) {
-			// TODO: verify if this case is equivalent to literature!
-			// Mine: implicit handling of an edge with n_faces > 2
-			e_new = vertices[e.v1].v + vertices[e.v2].v;
-			for (int j = 0; j < n_faces; j++)
-				e_new += face_vertices[e.face_ids[j]];
 
-			e_new *= 1.f/(2+n_faces);
+		if (e.sharpness <= 0) {
+			// Smooth edge
+
+			e_new = calc_smooth_edge_vertex(e, vertices, face_vertices);
 		}
-		else
-			cout << "Error: unhandled face number for edge!!!" << endl;
+		else if(e.sharpness >= 1.f) {
+			// Infinitely Sharp edge
+
+			e_new = edge_vertices[i];
+		}
+		else {
+			// Semi-sharp edge
+
+			e_new = vec3(0);
+		}
 
 		e_news.push_back(e_new);
 		cout << "e_new: (" << e_new.x << ", " << e_new.y << ", " << e_new.z << ")" << endl;
@@ -156,40 +176,31 @@ void subdivide(vector<vertex> &vertices, vector<vector<int>> &faces, vector<vec3
 	vector<vec3> v_news;
 	for (uint i = 0; i < vertices.size(); i++) {
 		vertex &v = vertices[i];
-		uint n = v.edge_ids.size();
-
+		vector<edge *> sharp_edges;
 		vec3 v_new;
-		if (n == v.face_ids.size()) {
-			vec3 Q(0), R(0);
-			for (uint j = 0; j < n; j++)
-				Q += face_vertices[v.face_ids[j]];
 
-			Q /= n;
-
-			for (uint j = 0; j < n; j++)
-				R += edge_vertices[v.edge_ids[j]];
-
-			R /= n;
-
-			v_new = 1.f/n * (Q + 2.f*R + (n-3.f)*v.v);
+		for (uint j = 0; j < v.edge_ids.size(); j++) {
+			edge &v_edge = edges.get(v.edge_ids[j]);
+			if (v_edge.sharpness > 0)
+				sharp_edges.push_back(&v_edge);
+		}
+		
+		uint n_sharp_edges = sharp_edges.size();
+		if (n_sharp_edges <= 1) {
+			// zero or one adjacent sharp edges -> smooth vertex rule
+			v_new = calc_vertex_vertex(v, edges, edge_vertices, face_vertices);
+		}
+		else if (n_sharp_edges == 2) {
+			// two adjacent sharp edges -> crease rule (or blend between crease vertex and corner mask)
+			vec3 e1 = calc_sharp_edge_vertex(*sharp_edges[0], vertices);
+			vec3 e2 = calc_sharp_edge_vertex(*sharp_edges[1], vertices);
+			v_new = 1.f/8 * (6.f * v.v + e1 + e2);
 		}
 		else {
-			int relevant_edges = 0;
-			vec3 R(0);
-			for (uint j = 0; j < v.edge_ids.size(); j++) {
-				// check if edge is at hole
-				edge &e = edges.get(v.edge_ids[j]);
-				if (e.face_ids.size() != 1)
-					continue;
-
-				relevant_edges++;
-				R += edge_vertices[v.edge_ids[j]];
-			}
-
-			// TODO: verify if this case is equivalent to literature!
-			// Mine: double weight the vertex position here
-			v_new = 1.f/(relevant_edges+2) * (R + v.v+v.v);
+			// three or more adjacent sharp edges -> corner rule
+			v_new = v.v;
 		}
+
 		v_news.push_back(v_new);
 		cout << "v_new: (" << v_new.x << ", " << v_new.y << ", " << v_new.z << ")" << endl;
 	}
@@ -243,8 +254,7 @@ void subdivide(vector<vertex> &vertices, vector<vector<int>> &faces, vector<vec3
 int add_edge(edge_list &edges, int a, int b, int f_id, vector<vertex> &vertices) {
 	int e_id = edges.get_id(a, b);
 	if (e_id == -1) {
-		edges.add(a, b);
-		e_id = edges.size()-1;
+		e_id = edges.add(a, b);
 	}
 	edge &e = edges.get(e_id);
 
@@ -266,6 +276,69 @@ void update_vertex(vector<vertex> &vertices, int v_id, int f_id, int e_id) {
 
 	if (!v.face_exists(f_id))
 		v.face_ids.push_back(f_id);
+}
+
+// Calculate smooth edge vertex
+vec3 calc_smooth_edge_vertex(const edge &e, const vector<vertex> &vertices, const vector<vec3> &face_vertices) {
+	int n_faces = e.face_ids.size();
+	if (n_faces == 2)
+		return 1.f/4 * (vertices[e.v1].v + vertices[e.v2].v + face_vertices[e.face_ids[0]] + face_vertices[e.face_ids[1]]);
+	else if (n_faces == 1)
+		//return edge_vertices[i];
+		return calc_sharp_edge_vertex(e, vertices);
+	else if (n_faces > 2) {
+		// TODO: verify if this case is equivalent to literature!
+		// Mine: implicit handling of an edge with n_faces > 2
+		vec3 e_new = vertices[e.v1].v + vertices[e.v2].v;
+		for (int j = 0; j < n_faces; j++)
+			e_new += face_vertices[e.face_ids[j]];
+
+		return e_new / (float)(2+n_faces);
+	}
+	else
+		cout << "Error: unhandled face number for edge!!!" << endl;
+
+	return vec3(0);
+}
+
+// Calculate current / sharp edge vertex
+vec3 calc_sharp_edge_vertex(const edge &e, const vector<vertex> &vertices) {
+	return .5f * vertices[e.v1].v + vertices[e.v2].v;
+}
+
+vec3 calc_vertex_vertex(const vertex &v, edge_list &edges, const vector<vec3> &edge_vertices, const vector<vec3> &face_vertices) {
+	uint n = v.edge_ids.size();
+	if (n == v.face_ids.size()) {
+		vec3 Q(0), R(0);
+		for (uint j = 0; j < n; j++)
+			Q += face_vertices[v.face_ids[j]];
+
+		Q /= n;
+
+		for (uint j = 0; j < n; j++)
+			R += edge_vertices[v.edge_ids[j]];
+
+		R /= n;
+
+		return 1.f/n * (Q + 2.f*R + (n-3.f)*v.v);
+	}
+	else {
+		int relevant_edges = 0;
+		vec3 R(0);
+		for (uint j = 0; j < v.edge_ids.size(); j++) {
+			// check if edge is at a hole
+			edge &e = edges.get(v.edge_ids[j]);
+			if (e.face_ids.size() != 1)
+				continue;
+
+			relevant_edges++;
+			R += edge_vertices[v.edge_ids[j]];
+		}
+
+		// TODO: verify if this case is equivalent to literature!
+		// Mine: double weight the vertex position here
+		return 1.f/(relevant_edges+2) * (R + v.v+v.v);
+	}
 }
 
 // ear cutting triangulation
@@ -311,7 +384,6 @@ void triangulate(const vector<vertex> &vertices, vector<vector<int>> &faces, vec
 					break;
 				}
 				i_k = (i_k+1)%n;
-				cout << "i_k: " << i_k << ", i_a: " << i_a << endl;
 			}
 			if (skip_x)
 				continue;
@@ -340,9 +412,8 @@ void triangulate(const vector<vertex> &vertices, vector<vector<int>> &faces, vec
 	}
 }
 
+// Construct obj format
 void write_obj(const vector<vertex> &vertices, const vector<vector<int>> &faces, const vector<vec3> &normals, const std::string name) {
-	// Construct obj format
-
 	ofstream outfile;
 	outfile.open("out/out_" + name + ".obj");
 	outfile << "o " << name << endl;

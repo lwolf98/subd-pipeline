@@ -61,3 +61,30 @@ bool vertex::face_exists(int id) const {
 
 	return false;
 }
+
+/*glm::vec3 edge::current_edge_vertex(const std::vector<glm::vec3> &vertices) {
+	return 1.f/2 * (vertices[v1].v+vertices[v2].v);
+}
+
+glm::vec3 edge::smooth_edge_vertex(const std::vector<glm::vec3> &vertices) {
+	int n_faces = e.face_ids.size();
+			if (n_faces == 2)
+				e_new = 1.f/4 * (vertices[e.v1].v + vertices[e.v2].v + face_vertices[e.face_ids[0]] + face_vertices[e.face_ids[1]]);
+			else if (n_faces == 1)
+				e_new = edge_vertices[i];
+			else if (n_faces > 2) {
+				// TODO: verify if this case is equivalent to literature!
+				// Mine: implicit handling of an edge with n_faces > 2
+				e_new = vertices[e.v1].v + vertices[e.v2].v;
+				for (int j = 0; j < n_faces; j++)
+					e_new += face_vertices[e.face_ids[j]];
+
+				e_new *= 1.f/(2+n_faces);
+			}
+			else
+				cout << "Error: unhandled face number for edge!!!" << endl;
+}
+
+glm::vec3 edge::sharp_edge_vertex(const std::vector<glm::vec3> &vertices) {
+	return current_edge_vertex(vertices);
+}*/
