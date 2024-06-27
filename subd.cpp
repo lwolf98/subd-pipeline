@@ -42,6 +42,10 @@ int main(int argc, char **argv) {
 	creases.get(c_id).sharpness = 1.f;
 	c_id = creases.add(4, 6);
 	creases.get(c_id).sharpness = 1.f;
+	c_id = creases.add(6, 2);
+	creases.get(c_id).sharpness = .5f;
+	c_id = creases.add(2, 0);
+	creases.get(c_id).sharpness = .5f;
 
 	// Parse obj file
 	cfg_t *cfg = parse_obj(argv[1]);
@@ -154,18 +158,15 @@ void subdivide(vector<vertex> &vertices, vector<vector<int>> &faces, vector<vec3
 
 		if (e.sharpness <= 0) {
 			// Smooth edge
-
 			e_new = calc_smooth_edge_vertex(e, vertices, face_vertices);
 		}
 		else if(e.sharpness >= 1.f) {
 			// Infinitely Sharp edge
-
 			e_new = edge_vertices[i];
 		}
 		else {
 			// Semi-sharp edge
-
-			e_new = vec3(0);
+			e_new = e.sharpness * edge_vertices[i] + (1-e.sharpness) * calc_smooth_edge_vertex(e, vertices, face_vertices);
 		}
 
 		e_news.push_back(e_new);
@@ -177,13 +178,20 @@ void subdivide(vector<vertex> &vertices, vector<vector<int>> &faces, vector<vec3
 	for (uint i = 0; i < vertices.size(); i++) {
 		vertex &v = vertices[i];
 		vector<edge *> sharp_edges;
+		vector<int> sharp_edge_ids;
+		float v_sharpness = 0;
 		vec3 v_new;
 
 		for (uint j = 0; j < v.edge_ids.size(); j++) {
 			edge &v_edge = edges.get(v.edge_ids[j]);
-			if (v_edge.sharpness > 0)
+			if (v_edge.sharpness > 0) {
 				sharp_edges.push_back(&v_edge);
+				sharp_edge_ids.push_back(j);
+				v_sharpness += v_edge.sharpness;
+			}
 		}
+		if (sharp_edge_ids.size() > 0)
+			v_sharpness = 1.f/sharp_edge_ids.size() * v_sharpness;
 		
 		uint n_sharp_edges = sharp_edges.size();
 		if (n_sharp_edges <= 1) {
@@ -192,14 +200,18 @@ void subdivide(vector<vertex> &vertices, vector<vector<int>> &faces, vector<vec3
 		}
 		else if (n_sharp_edges == 2) {
 			// two adjacent sharp edges -> crease rule (or blend between crease vertex and corner mask)
-			vec3 e1 = calc_sharp_edge_vertex(*sharp_edges[0], vertices);
-			vec3 e2 = calc_sharp_edge_vertex(*sharp_edges[1], vertices);
-			v_new = 1.f/8 * (6.f * v.v + e1 + e2);
+			vec3 e1 = calc_sharp_edge_vertex(*sharp_edges[0], vertices); //edge_vertices[sharp_edge_ids[0]];
+			vec3 e2 = calc_sharp_edge_vertex(*sharp_edges[1], vertices); //edge_vertices[sharp_edge_ids[1]];
+			//v_new = 1.f/8 * (6.f * v.v + e1 + e2);
+			v_new = 1.f/4 * (2.f * v.v + e1 + e2);
 		}
 		else {
 			// three or more adjacent sharp edges -> corner rule
 			v_new = v.v;
 		}
+
+		// TODO: check this interpolation step...
+		v_new = v_sharpness * v.v + (1 - v_sharpness) * v_new;
 
 		v_news.push_back(v_new);
 		cout << "v_new: (" << v_new.x << ", " << v_new.y << ", " << v_new.z << ")" << endl;
@@ -303,7 +315,7 @@ vec3 calc_smooth_edge_vertex(const edge &e, const vector<vertex> &vertices, cons
 
 // Calculate current / sharp edge vertex
 vec3 calc_sharp_edge_vertex(const edge &e, const vector<vertex> &vertices) {
-	return .5f * vertices[e.v1].v + vertices[e.v2].v;
+	return .5f * (vertices[e.v1].v + vertices[e.v2].v);
 }
 
 vec3 calc_vertex_vertex(const vertex &v, edge_list &edges, const vector<vec3> &edge_vertices, const vector<vec3> &face_vertices) {
