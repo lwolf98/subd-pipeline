@@ -16,10 +16,18 @@ void normalize_edge_order(int &a, int &b) {
 	}
 }
 
-int edge_list::add(int a, int b) {
+int edge_list::add(int a, int b, float sharpness) {
 	normalize_edge_order(a, b);
-	edges.push_back(edge(a,b));
+	edges.push_back(edge(a, b, sharpness));
 	return size()-1;
+}
+
+int edge_list::add(int a, int b) {
+	return add(a, b, 0.f);
+}
+
+void edge_list::clear() {
+	edges.clear();
 }
 
 int edge_list::get_id(int a, int b) const {

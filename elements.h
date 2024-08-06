@@ -10,7 +10,8 @@ struct edge {
 	float sharpness;
 	std::vector<int> face_ids;
 
-	edge(int v1, int v2) : v1(v1), v2(v2), sharpness(0.f) {}
+	edge(int v1, int v2, float sharpness) : v1(v1), v2(v2), sharpness(sharpness) {}
+	edge(int v1, int v2) : edge(v1, v2, 0.f) {}
 
 	bool face_exists(int id) const;
 	glm::vec3 smooth_edge_vertex();
@@ -36,6 +37,8 @@ class edge_list {
 
 public:
 	int add(int a, int b);
+	int add(int a, int b, float sharpness);
+	void clear();
 	int get_id(int a, int b) const;
 	edge& get(int id);
 	int size() const;

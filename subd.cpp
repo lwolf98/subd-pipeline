@@ -194,9 +194,10 @@ void subdivide(vector<vertex> &vertices, vector<vector<int>> &faces, vector<vec3
 			v_sharpness = 1.f/sharp_edge_ids.size() * v_sharpness;
 		
 		uint n_sharp_edges = sharp_edges.size();
+		vec3 v_smooth = calc_vertex_vertex(v, edges, edge_vertices, face_vertices);
 		if (n_sharp_edges <= 1) {
 			// zero or one adjacent sharp edges -> smooth vertex rule
-			v_new = calc_vertex_vertex(v, edges, edge_vertices, face_vertices);
+			v_new = v_smooth;
 		}
 		else if (n_sharp_edges == 2) {
 			// two adjacent sharp edges -> crease rule (or blend between crease vertex and corner mask)
@@ -210,8 +211,12 @@ void subdivide(vector<vertex> &vertices, vector<vector<int>> &faces, vector<vec3
 			v_new = v.v;
 		}
 
-		// TODO: check this interpolation step...
-		v_new = v_sharpness * v.v + (1 - v_sharpness) * v_new;
+		if (n_sharp_edges > 1) {
+			// TODO: check this interpolation step...
+			//v_new = v_sharpness * v.v + (1 - v_sharpness) * v_new;
+			//v_new = v_sharpness * v_new + (1 - v_sharpness) * v.v;
+			v_new = v_sharpness * v_new + (1 - v_sharpness) * v_smooth;
+		}
 
 		v_news.push_back(v_new);
 		cout << "v_new: (" << v_new.x << ", " << v_new.y << ", " << v_new.z << ")" << endl;
@@ -237,6 +242,7 @@ void subdivide(vector<vertex> &vertices, vector<vector<int>> &faces, vector<vec3
 
 	// Assign faces
 	vector<vector<int>> new_faces;
+	edge_list new_creases;
 	normals.clear();
 	for (uint i = 0; i < faces.size(); i++) {
 		vector<int> &f = faces[i];
@@ -244,17 +250,58 @@ void subdivide(vector<vertex> &vertices, vector<vector<int>> &faces, vector<vec3
 		int n = f.size();
 		for (int j = 0; j < n; j++) {
 			vector<int> new_f;
-			new_f.push_back(off_vert+f[j]);
-			new_f.push_back(off_edge+edges.get_id(f[j], f[(j+1)%n]));
-			new_f.push_back(off_face+i);
-			new_f.push_back(off_edge+edges.get_id(f[j], f[((j-1)%n+n)%n]));
+			int edge_vert1_id = f[(j+1)%n];
+			int edge_vert2_id = f[((j-1)%n+n)%n];
+			int v_vert_id = off_vert+f[j];
+			int e_vert1_id = off_edge+edges.get_id(f[j], edge_vert1_id);
+			int f_vert_id = off_face+i;
+			int e_vert2_id = off_edge+edges.get_id(f[j], edge_vert2_id);
+			new_f.push_back(v_vert_id);		// 1 vertex vertex,	e(4,1) -> calc. sharpness
+			new_f.push_back(e_vert1_id);	// 2 edge vertex,	e(1,2) -> calc. sharpness
+			new_f.push_back(f_vert_id);		// 3 face vertex,	e(2,3) -> smooth edge
+			new_f.push_back(e_vert2_id);	// 4 edge vertex,	e(3,4) -> smooth edge
 			new_faces.push_back(new_f);
+
+			if (!new_creases.exists(f[j], edge_vert1_id)) {
+				float s = 0.f;
+
+				vertex &v = vertices[v_vert_id];
+				int e_id = edges.get_id(f[j], edge_vert1_id);
+				edge &e = edges.get(e_id);
+				float max_adjacent_sharpness = 0.f;
+				for (uint k = 0; k < v.edge_ids.size(); k++) {
+					if (v.edge_ids[k] != e_id) {
+						edge &adj_edge = edges.get(v.edge_ids[k]);
+						if (adj_edge.sharpness > max_adjacent_sharpness)
+							max_adjacent_sharpness = adj_edge.sharpness;
+
+					}
+				}
+
+				// TODO: only consider edges with sharpness?
+				//s = 1.f/4 * (3*e.sharpness + max_adjacent_sharpness);
+				s = e.sharpness;
+
+				new_creases.add(v_vert_id, e_vert1_id, s);
+			}
+			// TODO: is this second case neccessary or is it guaranteed that the first case covers all new edges?
+			if (!new_creases.exists(f[j], edge_vert2_id)) {
+				// ...
+			}
 
 			glm::vec3 u = vertices[new_f[0]].v - vertices[new_f[1]].v;
 			glm::vec3 v = vertices[new_f[2]].v - vertices[new_f[1]].v;
 			glm::vec3 normal = glm::normalize(glm::cross(v, u));
 			normals.push_back(normal);
 		}
+	}
+
+	// Propagate new crease values
+	creases.clear();
+	for (int i = 0; i < new_creases.size(); i++) {
+		edge &e = new_creases.get(i);
+		if (e.sharpness > 0)
+			creases.add(e.v1, e.v2, e.sharpness);
 	}
 
 	faces.clear();
