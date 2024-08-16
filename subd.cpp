@@ -26,6 +26,9 @@ bool triagnulation = true;
 
 edge_list creases;
 
+vector<vec2> tcs;
+vector<vector<int>> tc_face_map;
+
 int main(int argc, char **argv) {
 	if (argc < 2 || argc > 3) {
 		printf("Wrong usage\n");
@@ -72,8 +75,8 @@ int main(int argc, char **argv) {
 	for (int i = 0; i <= cfg->vt->index; i++) {
 		vec2_t tc = data_texcoords[i];
 		printf("vt %s\n", vec2_to_str(tc));
-		//...
 		//vertices[i].tc = glm::vec2(tc.x[0], tc.x[1]);
+		tcs.push_back(glm::vec2(tc.x[0], tc.x[1]));
 	}
 
 	vector<vector<int>> faces;
@@ -82,13 +85,16 @@ int main(int argc, char **argv) {
 		stack_t *v_list = data_f + i;
 		printf("f ");
 		vector<int> verts;
+		vector<int> tc_face_list;
 		for (int j = 0; j <= v_list->index; j++) {
 			int *v_cfg = ((int **)v_list->storage)[j];
 			verts.push_back(v_cfg[0]-1);
+			tc_face_list.push_back(v_cfg[1]-1);
 			printf("%s ", v_cfg_to_str(v_cfg));
 		}
 		printf("\n");
 		faces.push_back(verts);
+		tc_face_map.push_back(tc_face_list);
 	}
 
 	has_normals = cfg->vn->index != -1;
@@ -243,11 +249,28 @@ void subdivide(vector<vertex> &vertices, vector<vector<int>> &faces, vector<vec3
 	// Assign faces
 	vector<vector<int>> new_faces;
 	edge_list new_creases;
+	vector<vec2> new_tcs;
+	vector<vector<int>> new_tc_face_map;
 	normals.clear();
 	for (uint i = 0; i < faces.size(); i++) {
 		vector<int> &f = faces[i];
+		int off_tcs = new_tcs.size();
+		vector<int> &tc_list = tc_face_map[i];
 		
 		int n = f.size();
+		// Calculate texture coordinates of the face
+		vec2 tc_face(0);
+		for (int j = 0; j < n; j++) {
+			vec2 current_tc = tcs[tc_list[j]];
+			vec2 next_tc = tcs[tc_list[(j+1)%n]];
+			tc_face += current_tc;
+
+			new_tcs.push_back(tcs[tc_list[j]]);					// vertex tc
+			new_tcs.push_back(.5f * (current_tc + next_tc));	// edge tc
+		}
+		tc_face /= n; // face tc
+		new_tcs.push_back(tc_face);
+
 		for (int j = 0; j < n; j++) {
 			vector<int> new_f;
 			int edge_vert1_id = f[(j+1)%n];
@@ -261,6 +284,13 @@ void subdivide(vector<vertex> &vertices, vector<vector<int>> &faces, vector<vec3
 			new_f.push_back(f_vert_id);		// 3 face vertex,	e(2,3) -> smooth edge
 			new_f.push_back(e_vert2_id);	// 4 edge vertex,	e(3,4) -> smooth edge
 			new_faces.push_back(new_f);
+
+			vector<int> tc_face;
+			tc_face.push_back(off_tcs + j*2);			// vertex tc
+			tc_face.push_back(off_tcs + j*2+1);			// edge tc
+			tc_face.push_back(off_tcs + n*2);			// face tc
+			tc_face.push_back(off_tcs + (j-1+n)%n * 2+1);	// edge tc
+			new_tc_face_map.push_back(tc_face);
 
 			if (!new_creases.exists(f[j], edge_vert1_id)) {
 				float s = 0.f;
@@ -304,10 +334,19 @@ void subdivide(vector<vertex> &vertices, vector<vector<int>> &faces, vector<vec3
 			creases.add(e.v1, e.v2, e.sharpness);
 	}
 
+	tcs.clear();
+	for (vec2 tc : new_tcs)
+		tcs.push_back(tc);
+
 	faces.clear();
 	for (vector<int> &f : new_faces) {
 		faces.push_back(f);
 	}
+
+	tc_face_map.clear();
+	for (vector<int> &tc_f : new_tc_face_map)
+		tc_face_map.push_back(tc_f);
+
 }
 
 int add_edge(edge_list &edges, int a, int b, int f_id, vector<vertex> &vertices) {
@@ -404,9 +443,11 @@ vec3 calc_vertex_vertex(const vertex &v, edge_list &edges, const vector<vec3> &e
 void triangulate(const vector<vertex> &vertices, vector<vector<int>> &faces, vector<vec3> &normals) {
 	vector<vector<int>> new_faces;
 	vector<vec3> new_normals;
+	vector<vector<int>> new_tc_face_map;
 
 	for (uint i = 0; i < faces.size(); i++) {
 		vector<int> &f = faces[i];
+		vector<int> &f_tc = tc_face_map[i];
 		int n = f.size();
  		int j = -1;
 		while (n > 3) {
@@ -447,26 +488,38 @@ void triangulate(const vector<vertex> &vertices, vector<vector<int>> &faces, vec
 			if (skip_x)
 				continue;
 
+			// assign vertex points
 			vector<int> new_f;
 			new_f.push_back(f[i_x]);
 			new_f.push_back(f[i_b]);
 			new_f.push_back(f[i_a]);
 			new_faces.push_back(new_f);
 
+			// assign texture coordinates
+			vector<int> new_f_tc;
+			new_f_tc.push_back(f_tc[i_x]);
+			new_f_tc.push_back(f_tc[i_b]);
+			new_f_tc.push_back(f_tc[i_a]);
+			new_tc_face_map.push_back(new_f_tc);
+
 			// works only for planar polygons:
 			new_normals.push_back(normals[i]);
 
 			f.erase(f.begin() + i_x);
+			f_tc.erase(f_tc.begin() + i_x);
 			n = f.size();
 		}
 		new_faces.push_back(f);
+		new_tc_face_map.push_back(f_tc);
 		new_normals.push_back(normals[i]);
 	}
 
 	normals.clear();
 	faces.clear();
+	tc_face_map.clear();
 	for (uint i = 0; i < new_faces.size(); i++) {
 		faces.push_back(new_faces[i]);
+		tc_face_map.push_back(new_tc_face_map[i]);
 		normals.push_back(new_normals[i]);
 	}
 }
@@ -484,14 +537,22 @@ void write_obj(const vector<vertex> &vertices, const vector<vector<int>> &faces,
 	}
 
 	// Write normals
-	outfile << endl;
-	for (uint i = 0; i < normals.size(); i++) {
-		const vec3 &n = normals[i];
-		outfile << "vn " << n.x << " " << n.y << " " << n.z << endl;
+	if (has_normals) {
+		outfile << endl;
+		for (uint i = 0; i < normals.size(); i++) {
+			const vec3 &n = normals[i];
+			outfile << "vn " << n.x << " " << n.y << " " << n.z << endl;
+		}
 	}
 
 	// Write texture coordinates
-	// ...
+	if (has_tc) {
+		outfile << endl;
+		for (uint i = 0; i < tcs.size(); i++) {
+			const vec2 &tc = tcs[i];
+			outfile << "vt " << tc.x << " " << tc.y << endl;
+		}
+	}
 
 	// Write faces
 	outfile << endl;
@@ -499,12 +560,14 @@ void write_obj(const vector<vertex> &vertices, const vector<vector<int>> &faces,
 		const vector<int> &f = faces[i];
 		outfile << "f";
 		for (uint j = 0; j < f.size(); j++) {
-			//if (has_normals && has_tc)
-			//	outfile << " " << f[j]+1  << "/0/0";
-			if (has_normals)
+			//int tc_index = f[j]+1;
+			int tc_index = tc_face_map[i][j]+1;
+			if (has_normals && has_tc)
+				outfile << " " << f[j]+1  << "/" << tc_index << "/" << i+1;
+			else if (has_normals)
 				outfile << " " << f[j]+1  << "//" << i+1;
-			//else if (has_tc)
-			//	outfile << " " << f[j]+1  << "/0/0";
+			else if (has_tc)
+				outfile << " " << f[j]+1  << "/" << tc_index;
 			else
 				outfile << " " << f[j]+1;
 		}
