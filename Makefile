@@ -6,7 +6,7 @@ SUBD=parse/stack.c parse/strop.c parse/obj.tab.c parse/lex.yy.c
 
 #subd: subd.cpp elements.cpp parse/lex.yy.c parse/stack.c parse/strop.c
 #	$(CC) $(CFLAGS) -o $@ $^
-subd: subd.cpp elements.cpp $(SUBD)
+subd: subd.cpp elements.cpp object.cpp $(SUBD)
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 
 parse/lex.yy.o parse/obj.tab.o:

@@ -11,6 +11,9 @@ OP_F "f "
 OP_VT "vt "
 OP_VN "vn "
 OP_V "v "
+OP_MLIB "mtllib "
+OP_UMTL "usemtl "
+OP_CREASE "t crease 2/1/0"
 FLT -?[0-9]*[.][0-9]*([e]-?[0-9]+)?
 INT -?[0-9]+
 STRING [^\"<\n]*
@@ -22,11 +25,14 @@ STRING [^\"<\n]*
 <INITIAL>{OP_VN}	{ return stm_normal; }
 <INITIAL>{OP_V}		{ return stm_vertex; }
 <INITIAL>{OP_F}		{ return stm_face; }
+<INITIAL>{OP_CREASE} { return stm_crease; }
 
-<INITIAL>"mtllib ".*\n	{ /* ignore for now */ }
-<INITIAL>"usemtl ".*\n	{ /* ignore for now */ }
+<INITIAL>{OP_MLIB}	{ BEGIN(NAME); return stm_mtllib; }
+<INITIAL>{OP_UMTL}	{ BEGIN(NAME); return stm_usemtl; }
 <INITIAL>"s ".*\n	{ /* ignore for now */ }
 <INITIAL>"g ".*\n	{ /* ignore for now */ }
+<INITIAL>"t in".*\n	{ /* ignore for now */ }
+<INITIAL>"t co".*\n	{ /* ignore for now */ }
 
 <INITIAL>{INT}		{ yylval.dec = atoi(yytext); return val_int; }
 <INITIAL>{FLT}		{ yylval.flt = strtof(yytext, NULL); return val_float; }

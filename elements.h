@@ -14,8 +14,6 @@ struct edge {
 	edge(int v1, int v2) : edge(v1, v2, 0.f) {}
 
 	bool face_exists(int id) const;
-	glm::vec3 smooth_edge_vertex();
-	glm::vec3 sharp_edge_vertex();
 };
 
 struct vertex {
@@ -47,4 +45,15 @@ public:
 	edge& get(int id);
 	int size() const;
 	bool exists(int a, int b) const;
+};
+
+struct vertex_config {
+	uint pos;
+	uint tc;
+};
+
+struct face {
+	glm::vec3 normal;
+	std::vector<vertex_config> verts;
+	uint size() { return verts.size(); }
 };

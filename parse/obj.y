@@ -1,6 +1,7 @@
 %{
 	#include <stdio.h>
 	#include <stdlib.h>
+	#include <math.h>
 	#include "stack.h"
 	#include "strop.h"
 
@@ -29,7 +30,7 @@
 	float flt;
 }
 
-%token stm_name stm_vertex stm_normal stm_tc stm_face
+%token stm_name stm_vertex stm_normal stm_tc stm_face stm_mtllib stm_usemtl stm_crease
 <str> val_string
 <dec> val_int
 <flt> val_float
@@ -49,6 +50,18 @@ STATEMENT:			stm_name val_string		{
 												buf.append(&buf, $2);
 												cfg->name = buf.get(&buf);
 											}
+				|	stm_mtllib val_string	{
+												string buf;
+												init_string(&buf);
+												buf.append(&buf, $2);
+												cfg->mtllib_path = buf.get(&buf);
+											}
+				|	stm_usemtl val_string	{
+												string buf;
+												init_string(&buf);
+												buf.append(&buf, $2);
+												cfg->material = buf.get(&buf);
+											}
 				|	stm_tc VT_ARGS
 				|	stm_normal VN_ARGS
 				|	stm_vertex V_ARGS
@@ -59,6 +72,7 @@ STATEMENT:			stm_name val_string		{
 												// reset vertex list
 												v_buffer = new_stack(sizeof(int *));
 											}
+				|	stm_crease CREASE_ARGS
 
 VT_ARGS:			NUMBER NUMBER				{
 														vec2_t tc;
@@ -94,12 +108,27 @@ F_ARGS_3:			F_ARGS_3 val_int '/' '/' val_int			{ add_v_cfg($2, -1, $5); }
 				|	val_int '/' '/' val_int						{ add_v_cfg($1, -1, $4); }
 F_ARGS_4:			F_ARGS_4 val_int '/' val_int '/' val_int	{ add_v_cfg($2, $4, $6); }
 				|	val_int '/' val_int '/' val_int				{ add_v_cfg($1, $3, $5); }
+CREASE_ARGS:	val_int val_int val_float		{
+													float sharpness = $3;
+													float sharp_floor = floor(sharpness);
+													if (sharpness > 0.f) {
+														if (sharpness != sharp_floor)
+															sharpness = sharpness - sharp_floor;
+														else
+															sharpness = 1.f;
+													}
+													crease_t c = {$1, $2, sharpness};
+													cfg->creases->push(cfg->creases, &c);
+												}
 
 %%
 
 cfg_t *parse_obj(char *file_in) {
 	v_buffer = new_stack(sizeof(int *));
-	cfg = new_cfg();
+	string source;
+	init_string(&source);
+	source.append(&source, file_in);
+	cfg = new_cfg(source.get(&source));
 
 	yyin = fopen(file_in, "r");
 	if (yyin == NULL) {

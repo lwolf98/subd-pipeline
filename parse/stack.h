@@ -2,30 +2,6 @@
 
 #include "strop.h"
 
-/*typedef struct {
-	float x;
-	float y;
-} vec2_t;
-
-typedef struct {
-	float x;
-	float y;
-	float z;
-} vec3_t;
-
-typedef struct {
-	int x;
-	int y;
-	int z;
-	int w;
-} vec4i_t;
-
-typedef struct {
-	vec4i_t vert;
-	vec4i_t tc;
-	vec4i_t normal;
-} face_t;*/
-
 typedef struct {
 	float x[2];
 } vec2_t;
@@ -67,11 +43,21 @@ typedef struct stack_t {
 stack_t *new_stack(int member_size);
 
 typedef struct {
+	int a;
+	int b;
+	float s;
+} crease_t;
+
+typedef struct {
 	char *name;
+	char *mtllib_path;
+	char *material;
+	char *source_path;
 	stack_t *v;
 	stack_t *vt;
 	stack_t *vn;
 	stack_t *f;
+	stack_t *creases;
 } cfg_t;
 
-cfg_t *new_cfg();
+cfg_t *new_cfg(char *source);

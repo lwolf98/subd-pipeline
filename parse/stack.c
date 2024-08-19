@@ -8,16 +8,21 @@ void s_push(stack_t *s, void *val);
 void s_pop(stack_t *s, void *out);
 void s_peek(stack_t *s, void *out);
 int s_isempty(stack_t *s);
-//val_t *s_lookup(struct stack_t *s, char *id);
 void s_pop_to_index(stack_t *s, int index);
 
-cfg_t *new_cfg() {
+cfg_t *new_cfg(char *source) {
 	cfg_t *cfg = (cfg_t *)malloc(sizeof *cfg);
+
+	cfg->name = NULL;
+	cfg->mtllib_path = NULL;
+	cfg->material = NULL;
+	cfg->source_path = source;
 
 	cfg->v = new_stack(sizeof(vec3_t));
 	cfg->vt = new_stack(sizeof(vec2_t));
 	cfg->vn = new_stack(sizeof(vec3_t));
 	cfg->f = new_stack(sizeof(stack_t));
+	cfg->creases = new_stack(sizeof(crease_t));
 
 	return cfg;
 }
