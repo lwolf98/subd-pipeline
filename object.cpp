@@ -371,6 +371,13 @@ void mesh::subdivide() {
 		faces.push_back(f);
 	}
 
+	// Calculate adjacent edges and faces
+	edges.clear();
+	for (uint i = 0; i < faces.size(); i++) {
+		face& f = faces[i];
+		for (uint j = 0; j < f.size(); j++)
+			add_edge(edges, f.verts[j].pos, f.verts[(j+1)%f.size()].pos, i);
+	}
 }
 
 int mesh::add_edge(edge_list &edges, int a, int b, int f_id) {
